@@ -55,8 +55,7 @@ In our case we call the script after the RAID status check completes with exit c
 in check_lsi_raid:
         
     sub getSSDstatus {
-    
-    system("/usr/bin/check_ssd -t -c=lsi");
+        system("/usr/bin/check_ssd -t -c=lsi");
         if ($? == 0) {
           # We have SSDs!
           my $command = "/usr/bin/check_ssd -c=lsi";
