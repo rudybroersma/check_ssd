@@ -54,7 +54,7 @@ In our case we call the script after the RAID status check completes with exit c
 
 in check_lsi_raid:
         
-sub getSSDstatus {
+    sub getSSDstatus {
     
     system("/usr/bin/check_ssd -t -c=lsi");
         if ($? == 0) {
