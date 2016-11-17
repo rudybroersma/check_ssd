@@ -16,12 +16,12 @@ IDE/SATA:
 3Ware 9750 Controller:
 
     # check_ssd
-    SSD OK: (3ware) Drive 2 WLC/MWI 99. Drive 3 WLC/MWI 99.
+    SSD OK: (3ware) Drive 2/0 WLC/MWI 99. Drive 3/0 WLC/MWI 99.
 
 LSI 9341 Controller:
 
     # check_ssd
-    SSD OK: (megaraid) Drive 8 WLC/MWI 99. Drive 9 WLC/MWI 99.
+    SSD OK: (megaraid) Drive 4/1 WLC/MWI 83. Drive 5/1 WLC/MWI 83.
 
 ## Usage
 
@@ -75,4 +75,9 @@ in check_lsi_raid:
                 exit($exitcode);
 
 
+
+# ChangeLog:
+
+
+- Version 1.1: Support for multiple LSI cards. Support for multiple 3Ware cards are not yet implemented.
 
