@@ -17,6 +17,7 @@
 #
 # TODO: smartctl does not (fully) support NVME. Checking NVME drives is thus currently
 #       not supported.
+# TODO: We assume the first block device is the correct block device for LSI
 # TODO: We only support one 3Ware controller as of now
 #
 # WARNING: Block devices naming scheme is dependent on device creation time.
@@ -151,14 +152,16 @@ function getDIDlist {
       DRIVER="3ware"
       TWARE_CID=`$TWARE show | grep ^c | awk '{ print $1 }' | head --lines 1`
 
-      # We have made some preparations for multi-controller machines, but it is not finished yet.
       CONTROLLERS[0]=0
-      BLOCKDEVICE[0]="/dev/twl0" # This seems to be the proper device regardless of which unit (and thus device name) the drive belongs too. Unsure about multicontrollers tho
+      BLOCKDEVICE[0]="/dev/twl0" # # This seems to be the proper device regardless of which unit (and thus device name) the drive belongs too
       DIDLIST[0]=`$TWARE /$TWARE_CID show | grep "$BRAND" | awk '{ print $1 }' | sed "s/p//g"`
     ;;
     *auto*)
       if [ $DEBUG -eq 1 ]; then echo "auto controller detected"; fi;
       DRIVER="auto"
+
+      CONTROLLERS[0]=0
+      BLOCKDEVICE[0]=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }' | grep -v nvme`
       DIDLIST[0]=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }' | grep -v nvme`
     ;;
     *)
@@ -170,11 +173,11 @@ function getDIDlist {
 
 
 function hasSSDs {
-  if [ "$CONTROLLER" = "auto" ]; then
-    if [ `echo $DIDLIST | sed '/^\s*$/d' | wc -l` -ne 0 ]; then
-      HAS_SSD=1
-    fi
-  else
+#  if [ "$CONTROLLER" = "auto" ]; then
+#    if [ `echo $DIDLIST | sed '/^\s*$/d' | wc -l` -ne 0 ]; then
+#      HAS_SSD=1
+#    fi
+#  else
     CONTROLLERCOUNT=${#CONTROLLERS[@]}
     if [ $DEBUG -eq 1 ]; then echo "Found $CONTROLLERCOUNT controllers"; fi;
     for i in `seq 0 $((CONTROLLERCOUNT - 1))`
@@ -186,7 +189,7 @@ function hasSSDs {
         if [ $DEBUG -eq 1 ]; then echo "Found no disk(s) on controller $i"; fi;
       fi
     done
-  fi
+#  fi
 }
 
 function checkDID () {
@@ -200,20 +203,20 @@ function checkDID () {
       fi
       case $VALUE in
       100)
-        MESSAGE+="Drive $d/$1 WLC/MWI $VALUE. "
+        MESSAGE+="Drive $d on $1 WLC/MWI $VALUE. "
         ;;
       [4-9][0-9])
-        MESSAGE+="Drive $d/$1 WLC/MWI $VALUE. "
+        MESSAGE+="Drive $d on $1 WLC/MWI $VALUE. "
         ;;
       [2-3][0-9])
-        MESSAGE+="Drive $d MEDIUM WLC/MWI ($VALUE). "
+        MESSAGE+="Drive $d on $1 MEDIUM WLC/MWI ($VALUE). "
         if [ "$EXITCODE" -eq "0" ]; then     
           EXITCODE=1
           PREFIX="SSD WARNING"
         fi
         ;;
       [0-1]*)
-        MESSAGE+="Drive $d/$1 CRITICAL WLC/MWI ($VALUE). "  
+        MESSAGE+="Drive $d on $1 CRITICAL WLC/MWI ($VALUE). "  
         EXITCODE=2  
         PREFIX="SSD CRITICAL"
         ;;
@@ -227,12 +230,8 @@ function checkDID () {
 }
 
 function checkSSDs {
-#  set -o posix; set
-#set -o posix; set
     for CONTROLLER_SEQ in `seq 0 $(($CONTROLLERCOUNT - 1))`
     do
-#      for d in `echo $DIDLIST`
-#      do
       if [ -z "${DIDLIST[$CONTROLLER_SEQ]}" ];
       then
         if [ $DEBUG -eq 1 ]; then echo "Controller $CONTROLLER_SEQ has no SSDs"; fi
