@@ -1,8 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Written by Rudy Broersma, Duocast BV <r.broersma@duocast.nl> 
 #
 # This script needs work:
-# We assume sda for now on LSI
 # We assume Samsung SSDs or Intel SSDs
 # We assume 'Wear_Leveling_Count' or 'Media_Wearout_Indicator' (can be different for different manufacturers)
 #
@@ -17,8 +16,6 @@
 #
 # TODO: smartctl does not (fully) support NVME. Checking NVME drives is thus currently
 #       not supported.
-# TODO: We assume the first block device is the correct block device for LSI
-# TODO: We only support one 3Ware controller as of now
 #
 # WARNING: Block devices naming scheme is dependent on device creation time.
 # so, if you create a new RAID array on an already running system there is the possibility
@@ -29,9 +26,10 @@
 # Version	Change
 # 1.0		Initial release
 # 1.1		Support for multiple LSI controllers
+# 1.2		Correctly identify which blockdevice (/dev/sdX) belongs to which controller
 #
 
-VERSION="1.1"
+VERSION="1.2"
 
 STORCLI="/usr/bin/storcli"
 TWARE="/usr/bin/tw_cli"
@@ -136,11 +134,10 @@ function getDIDlist {
     *lsi*)
       if [ $DEBUG -eq 1 ]; then echo "LSI/AVAGO controller detected"; fi;
       DRIVER="megaraid"
-
       ITERATE=0
       for c in `storcli show | egrep "^  [0-9]" | awk '{ print $1 }'`; do
         CONTROLLERS[$ITERATE]=$c
-        BLOCKDEVICE[$ITERATE]=`/bin/lsblk -d -o name,rota | /usr/bin/tail -n +2 | awk '{ print "/dev/"$1 } ' | head --lines $((ITERATE + 1)) | tail --lines 1`
+        BLOCKDEVICE[$ITERATE]=`/bin/lsblk -d -S -n --output HCTL,NAME | sed "s/:/ /g" | awk '{ print \$1 " " \$5 }' | grep ^$c | tail --lines 1 | awk '{ print "/dev/" $2 }'`
         DIDLIST[$ITERATE]=`$STORCLI /c$ITERATE show | grep SSD | awk '{ print $2 }'`
         if [ $DEBUG -eq 1 ]; then echo "Found controller #${CONTROLLERS[$ITERATE]} with associated blockdevice ${BLOCKDEVICE[$ITERATE]}"; fi;
 
@@ -193,9 +190,12 @@ function hasSSDs {
 }
 
 function checkDID () {
+  if [ $DEBUG -eq 1 ]; then echo "Checking DID on controller $1"; fi
+
   DIDLIST_CUR="${DIDLIST[$1]}"
   for d in $(echo $DIDLIST_CUR)
   do
+      if [ $DEBUG -eq 1 ]; then echo "Checking DID number $d on controller $1 with driver $DRIVER"; fi
       if [ "$DRIVER" = "auto" ]; then
         VALUE=`echo \`$SMARTCTL -A -d auto $d | grep "^177\|^233" | awk '{ print $4 }'\` + 0 | bc`  
       else
@@ -232,10 +232,12 @@ function checkDID () {
 function checkSSDs {
     for CONTROLLER_SEQ in `seq 0 $(($CONTROLLERCOUNT - 1))`
     do
+      if [ $DEBUG -eq 1 ]; then echo "Checking controller $CONTROLLER_SEQ"; fi
       if [ -z "${DIDLIST[$CONTROLLER_SEQ]}" ];
       then
         if [ $DEBUG -eq 1 ]; then echo "Controller $CONTROLLER_SEQ has no SSDs"; fi
       else
+        if [ $DEBUG -eq 1 ]; then echo "Controller $CONTROLLER_SEQ does have SSDs"; fi
         checkDID "$CONTROLLER_SEQ"
       fi
     done
