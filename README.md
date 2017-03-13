@@ -1,10 +1,10 @@
 # Nagios check for SSD Wear Level
 
-This is a small script to check SSD Wear Level Indicators, specifically SMART ID 177 and 233.
+This is a small script to check SSD Wear Level Indicators, specifically SMART ID 177 and 233, or the wear-leveling attribute in nvme-cli.
 
 This script tries to find SSDs itself by checking for RAID controller cards we use within our organization. As of this moment that is 3Ware and LSI/AVAGO cards.
 
-It also supports IDE/SATA drives.
+It also supports IDE/SATA/NVMe drives.
 
 ## Example
 
@@ -12,6 +12,10 @@ IDE/SATA:
 
     # check_ssd
     SSD OK: (auto) Drive /dev/sda WLC/MWI 100. Drive /dev/sdc WLC/MWI 100.
+
+NVMe:
+    # check_ssd
+    SSD OK: (auto) Drive /dev/sda on 0 WLC/MWI 99. Drive /dev/sdc on 0 WLC/MWI 99. Drive /dev/nvme0n1 on 0 WLC/MWI 100. Drive /dev/nvme1n1 on 0 WLC/MWI 100.
 
 3Ware 9750 Controller:
 
@@ -43,10 +47,12 @@ The script uses the following tools:
 - smartctl for retrieving SMART data
 - storcli for managing LSI controllers
 - tw_cli for managing 3Ware controllers
+- nvme-cli for managing nvme disks
 - bc for calculations
 - awk for string manipulation
 - head/tail for output filtering
 - sed for string manipulation
+- tr for removing characters
 
 ## Example
 
@@ -78,6 +84,5 @@ in check_lsi_raid:
 
 # ChangeLog:
 
-
+- Version 1.2: Support for NVMe disks.
 - Version 1.1: Support for multiple LSI cards. Support for multiple 3Ware cards are not yet implemented.
-
