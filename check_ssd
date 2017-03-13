@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Written by Rudy Broersma, Duocast BV <r.broersma@duocast.nl> 
+# NVMe functionality added by Lukas de Boer <lukas@luqq.nl>
 #
 # This script needs work:
 # We assume Samsung SSDs or Intel SSDs
@@ -13,9 +14,6 @@
 # I purposely set the values to 90 (warning) and 80 (critical) to get very early warnings
 # to see if this check works okay. We can later set it to reasonable values such as 1 
 # and 10
-#
-# TODO: smartctl does not (fully) support NVME. Checking NVME drives is thus currently
-#       not supported.
 #
 # WARNING: Block devices naming scheme is dependent on device creation time.
 # so, if you create a new RAID array on an already running system there is the possibility
@@ -36,6 +34,7 @@ STORCLI="/usr/bin/storcli"
 TWARE="/usr/bin/tw_cli"
 BC="/usr/bin/bc"
 SMARTCTL="/usr/sbin/smartctl"
+NVMECLI="/usr/sbin/nvme"
 
 MESSAGE=""
 EXITCODE=0  
@@ -104,7 +103,7 @@ done
 
 if [ -z ${CARD+X} ]; then 
   # Check for local devices
-  LOCAL_SSD=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0' | grep -v nvme | wc -l`
+  LOCAL_SSD=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0' | wc -l`
   if [ $LOCAL_SSD -gt 0 ];
   then
     CONTROLLER="auto"
@@ -127,6 +126,7 @@ function checkTooling {
   esac
 
   if [ ! -f $SMARTCTL ]; then echo "UNKNOWN: smartctl not found"; exit 4; fi
+  if [ ! -f $NVMECLI ]; then echo "UNKNOWN: nvme-cli not found"; exit 4; fi
   if [ ! -f $BC ]; then echo "UNKNOWN: bc not found"; exit 4; fi
 }
 
@@ -160,8 +160,8 @@ function getDIDlist {
       DRIVER="auto"
 
       CONTROLLERS[0]=0
-      BLOCKDEVICE[0]=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }' | grep -v nvme`
-      DIDLIST[0]=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }' | grep -v nvme`
+      BLOCKDEVICE[0]=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }'`
+      DIDLIST[0]=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }'`
     ;;
     *)
       echo "UNKNOWN: Unknown controller or no controller found"
@@ -199,7 +199,11 @@ function checkDID () {
   do
       if [ $DEBUG -eq 1 ]; then echo "Checking DID number $d on controller $1 with driver $DRIVER"; fi
       if [ "$DRIVER" = "auto" ]; then
-        VALUE=`echo \`$SMARTCTL -A -d auto $d | grep "^177\|^233" | awk '{ print $4 }'\` + 0 | bc`  
+	if [[ $d =~ ^/dev/nvme.* ]]; then
+		VALUE=`echo \`$NVMECLI smart-log-add $d | grep "^wear_leveling" | tr -d '%' | awk '{ print $3 }'\` + 0 | bc`
+	else
+        	VALUE=`echo \`$SMARTCTL -A -d auto $d | grep "^177\|^233" | awk '{ print $4 }'\` + 0 | bc`  
+	fi
       else
         VALUE=`echo \`$SMARTCTL -A -d $DRIVER,$d ${BLOCKDEVICE[$1]} | grep "^177\|^233" | awk '{ print $4 }'\` + 0 | bc`  
       fi
