@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Written by Rudy Broersma, Duocast BV <r.broersma@duocast.nl> 
-# NVMe functionality added by Lukas de Boer
+# NVMe functionality added by Lukas de Boer <lukas@luqq.nl>
 #
 # This script needs work:
 # We assume Samsung SSDs or Intel SSDs
