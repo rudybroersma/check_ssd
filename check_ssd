@@ -26,9 +26,9 @@
 # 1.1		Support for multiple LSI controllers
 # 1.2		Correctly identify which blockdevice (/dev/sdX) belongs to which controller
 # 1.3		Replace lsblk -S with lsscsi. -S flag on lsblk is not available on Wheezy
-#
+# 1.4		Add support for NVMe disks
 
-VERSION="1.3"
+VERSION="1.4"
 
 STORCLI="/usr/bin/storcli"
 TWARE="/usr/bin/tw_cli"
@@ -125,8 +125,14 @@ function checkTooling {
       ;;
   esac
 
+  # Only check for nvme-cli if we have nvme-cli
+  LOCAL_NVME=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0' | grep nvme | wc -l`
+  if [ $LOCAL_NVME -gt 0 ];
+  then
+    if [ ! -f $NVMECLI ]; then echo "UNKNOWN: nvme-cli not found"; exit 4; fi
+  fi
+
   if [ ! -f $SMARTCTL ]; then echo "UNKNOWN: smartctl not found"; exit 4; fi
-  if [ ! -f $NVMECLI ]; then echo "UNKNOWN: nvme-cli not found"; exit 4; fi
   if [ ! -f $BC ]; then echo "UNKNOWN: bc not found"; exit 4; fi
 }
 
@@ -160,8 +166,8 @@ function getDIDlist {
       DRIVER="auto"
 
       CONTROLLERS[0]=0
-      BLOCKDEVICE[0]=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }'`
-      DIDLIST[0]=`/bin/lsblk -d -o name,rota | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }'`
+      BLOCKDEVICE[0]=`/bin/lsblk -d -o name,rota | grep "$DEVICE" | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }'`
+      DIDLIST[0]=`/bin/lsblk -d -o name,rota | grep "$DEVICE" | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }'`
     ;;
     *)
       echo "UNKNOWN: Unknown controller or no controller found"
