@@ -85,6 +85,7 @@ in check_lsi_raid:
 
 # ChangeLog:
 
+- Version 1.5: Tiny bugfix
 - Version 1.4: Support for NVMe disks.
 - Version 1.3: Replace lsblk -S with lsscsi. -S flag on lsblk is not available on Wheezy
 - Version 1.2: Correctly identify which blockdevice (/dev/sdX) belongs to which controller
