@@ -54,6 +54,8 @@ The script uses the following tools:
 - head/tail for output filtering
 - sed for string manipulation
 - tr for removing characters
+- lsblk to identify SSDs on HBAs (non-RAID)
+- lsscsi to lookup blockdevice by controller
 
 ## Example
 
