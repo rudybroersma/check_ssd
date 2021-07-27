@@ -34,11 +34,12 @@
 # 1.9                                           Ignore ZFS devices
 # 2.0                                           Also add Samsung as brand (not all uppercase)
 # 2.1                                           Add fix for Samsung SSDs on NVMe RAID Controller. New indicator.
+# 2.2           Fix voor nvme-cli, now requires brand plugin. Currently only Intel is supported.
 #
 # TODO:
 # The test -x $STORCLI should be removed.
 # Multicontroller support should be rewritten. Its ugly now.
-VERSION="2.1"
+VERSION="2.2"
 
 STORCLI="/usr/bin/storcli"
 TWARE="/usr/bin/tw_cli"
@@ -241,7 +242,7 @@ function checkDID () {
       if [ $DEBUG -eq 1 ]; then echo "Checking DID number $d on controller $1 with driver ${DRIVERS[$1]}"; fi
       if [ "${DRIVERS[$1]}" = "auto" ]; then
         if [[ $d =~ ^/dev/nvme.* ]]; then
-                VALUE=`echo \`$NVMECLI smart-log-add $d | grep "^wear_leveling" | tr -d '%' | awk '{ print $3 }'\` + 0 | bc`
+                VALUE=`echo \`$NVMECLI intel smart-log-add $d | grep "^wear_leveling" | tr -d '%' | awk '{ print $3 }'\` + 0 | bc`
                                 elif [[ $d =~ ^/dev/zd.* ]]; then
                                           # skip zvol block device
                                           continue
