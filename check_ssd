@@ -35,11 +35,12 @@
 # 2.0                                           Also add Samsung as brand (not all uppercase)
 # 2.1                                           Add fix for Samsung SSDs on NVMe RAID Controller. New indicator.
 # 2.2           Fix voor nvme-cli, now requires brand plugin. Currently only Intel is supported.
-#
+# 2.3           Fix leading zero in WLC
+
 # TODO:
 # The test -x $STORCLI should be removed.
 # Multicontroller support should be rewritten. Its ugly now.
-VERSION="2.2"
+VERSION="2.3"
 
 STORCLI="/usr/bin/storcli"
 TWARE="/usr/bin/tw_cli"
@@ -269,6 +270,10 @@ function checkDID () {
           VALUE=$((100-$VALUE_NEW))
         fi
       fi
+      
+      # Remove leading zeros
+      VALUE=$(expr $VALUE + 0)
+      
       case $VALUE in
       100)
         MESSAGE+="Drive $d on $1 WLC/MWI $VALUE. "
