@@ -41,12 +41,11 @@
 # The test -x $STORCLI should be removed.
 # Multicontroller support should be rewritten. Its ugly now.
 VERSION="2.3"
-
 STORCLI="/usr/bin/storcli"
 TWARE="/usr/bin/tw_cli"
 BC="/usr/bin/bc"
-SMARTCTL="/usr/sbin/smartctl"
-NVMECLI="/usr/sbin/nvme"
+SMARTCTL="sudo /usr/sbin/smartctl"
+NVMECLI="sudo /usr/sbin/nvme"
 LSBLK="/bin/lsblk"
 
 MESSAGE=""
@@ -247,8 +246,10 @@ function checkDID () {
                 VALUE=$(echo $($NVMECLI intel smart-log-add $d | grep "^wear_leveling" | tr -d '%' | awk '{ print $3 }') + 0 | bc)
                                 elif [[ $d =~ ^/dev/zd.* ]]; then
                                           # skip zvol block device
+					echo "Skipping"
                                           continue
 			elif $SMARTCTL -a $d | grep -qi samsung; then
+					echo "checking samsung"
                 VALUE=$(echo $($NVMECLI smart-log $d | grep "^available_spare " | tr -d '%' | awk '{ print $3 }') + 0 | bc)
 			fi
         else
