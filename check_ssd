@@ -40,8 +40,8 @@
 # TODO:
 # The test -x $STORCLI should be removed.
 # Multicontroller support should be rewritten. Its ugly now.
+SUDO="sudo"
 VERSION="2.3"
-
 STORCLI="/usr/bin/storcli"
 TWARE="/usr/bin/tw_cli"
 BC="/usr/bin/bc"
@@ -102,6 +102,9 @@ case $i in
     -d|--debug)
     DEBUG=1
     ;;
+	-n | --nosudo)
+	SUDO=""
+	;;
     -v|--version)
     echo $VERSION
     exit
@@ -166,7 +169,7 @@ function getDIDlist {
         CONTROLLERS[$ITERATE]=$c
 #        BLOCKDEVICE[$ITERATE]=`$LSBLK -d -S -n --output HCTL,NAME | sed "s/:/ /g" | awk '{ print \$1 " " \$5 }' | grep ^$c | tail --lines 1 | awk '{ print "/dev/" $2 }'`
         BLOCKDEVICE[$ITERATE]=$(lsscsi | sed "s/\[//g; s/\]//g" | awk '{ print $1 " " $6 }' | sed "s/:/ /g" | awk '{ print \$1 " " \$5 }' | grep ^$c | tail --lines 1 | awk '{ print $2 }')
-        DIDLIST[$ITERATE]=$($STORCLI /c$ITERATE show | grep SSD | awk '{ print $2 }')
+        DIDLIST[$ITERATE]=$($SUDO $STORCLI /c$ITERATE show | grep SSD | awk '{ print $2 }')
         if [ $DEBUG -eq 1 ]; then echo "Found controller #${CONTROLLERS[$ITERATE]} with associated blockdevice ${BLOCKDEVICE[$ITERATE]}"; fi
         ITERATE=$((ITERATE + 1))
 
@@ -175,12 +178,12 @@ function getDIDlist {
     *3ware*)
       if [ $DEBUG -eq 1 ]; then echo "3ware controller detected"; fi;
 #      DRIVER="3ware"
-      TWARE_CID=$($TWARE show | grep ^c | awk '{ print $1 }' | head --lines 1)
+      TWARE_CID=$($SUDO $TWARE show | grep ^c | awk '{ print $1 }' | head --lines 1)
 
       DRIVERS[0]="3ware"
       CONTROLLERS[0]=0
       BLOCKDEVICE[0]="/dev/twl0" # # This seems to be the proper device regardless of which unit (and thus device name) the drive belongs too
-      DIDLIST[0]=$($TWARE /$TWARE_CID show | grep "$BRAND" | grep -v "$IGNORE" | awk '{ print $1 }' | sed "s/p//g")
+      DIDLIST[0]=$($SUDO $TWARE /$TWARE_CID show | grep "$BRAND" | grep -v "$IGNORE" | awk '{ print $1 }' | sed "s/p//g")
     ;;
     *auto*)
       if [ $DEBUG -eq 1 ]; then echo "auto controller detected"; fi;
@@ -192,7 +195,7 @@ function getDIDlist {
       DIDLIST[$ITERATE]=$($LSBLK -d -o name,rota | grep "$DEVICE" | /usr/bin/awk '$2 == 0 { print "/dev/"$1 }')
 
       CONTROLLERITERATE=0
-      for c in $(test -x $STORCLI && storcli show | egrep "^  [0-9]" | awk '{ print $1 }'); do
+      for c in $(test -x $SUDO $STORCLI && storcli show | egrep "^  [0-9]" | awk '{ print $1 }'); do
         if [ $DEBUG -eq 1 ]; then echo "LSI controller detected"; fi
         ITERATE=$((ITERATE + 1))
 
@@ -200,7 +203,7 @@ function getDIDlist {
         DRIVERS[$ITERATE]="megaraid"
         CONTROLLERS[$ITERATE]=$c
         BLOCKDEVICE[$ITERATE]=$(lsscsi | grep -v "cd/dvd" | sed "s/\[//g; s/\]//g" | awk '{ print $1 " " $6 }' | sed "s/:/ /g" | awk '{ print \$1 " " \$5 }' | grep ^$c | tail --lines 1 | awk '{ print $2 }')
-        DIDLIST[$ITERATE]=$(test -x $STORCLI && $STORCLI /c$CONTROLLERITERATE show | grep SSD | awk '{ print $2 }')
+        DIDLIST[$ITERATE]=$(test -x $SUDO $STORCLI && $SUDO $STORCLI /c$CONTROLLERITERATE show | grep SSD | awk '{ print $2 }')
         if [ $DEBUG -eq 1 ]; then echo "Found controller #${CONTROLLERS[$ITERATE]} with associated blockdevice ${BLOCKDEVICE[$ITERATE]}"; fi;
 
         CONTROLLERITERATE=$((CONTROLLERITERATE + 1))
@@ -243,18 +246,20 @@ function checkDID () {
       if [ $DEBUG -eq 1 ]; then echo "Checking DID number $d on controller $1 with driver ${DRIVERS[$1]}"; fi
       if [ "${DRIVERS[$1]}" = "auto" ]; then
         if [[ $d =~ ^/dev/nvme.* ]]; then
-			if $SMARTCTL -a $d | grep -qi intel; then 
-                VALUE=$(echo $($NVMECLI intel smart-log-add $d | grep "^wear_leveling" | tr -d '%' | awk '{ print $3 }') + 0 | bc)
+            if $SUDO $SMARTCTL -a $d | grep -qi intel; then 
+                VALUE=$(echo $($SUDO $NVMECLI intel smart-log-add $d | grep "^wear_leveling" | tr -d '%' | awk '{ print $3 }') + 0 | bc)
                                 elif [[ $d =~ ^/dev/zd.* ]]; then
                                           # skip zvol block device
+                    echo "Skipping"
                                           continue
-			elif $SMARTCTL -a $d | grep -qi samsung; then
-                VALUE=$(echo $($NVMECLI smart-log $d | grep "^available_spare " | tr -d '%' | awk '{ print $3 }') + 0 | bc)
-			fi
+            elif $SUDO $SMARTCTL -a $d | grep -qi "samsung\|sabrent"; then
+                [ $DEBUG -eq 1 ] &&  echo "checking samsung"
+                VALUE=$(echo $($SUDO $NVMECLI smart-log $d | grep "^available_spare " | tr -d '%' | awk '{ print $3 }') + 0 | bc)
+            fi
         else
           RE='^[0-9]+$'
-          VALUE_OLD=$($SMARTCTL -A -d auto $d | grep "^177\|^233" | tail --lines 1 | awk '{ print $4 }')
-          VALUE_NEW=$($SMARTCTL -H -d auto $d | grep "^Percentage used endurance indicator" | tail --lines 1 | sed "s/%//g" |  awk '{ print $5 }')
+          VALUE_OLD=$($SUDO $SMARTCTL -A -d auto $d | grep "^177\|^233" | tail --lines 1 | awk '{ print $4 }')
+          VALUE_NEW=$($SUDO $SMARTCTL -H -d auto $d | grep "^Percentage used endurance indicator" | tail --lines 1 | sed "s/%//g" |  awk '{ print $5 }')
           if [[ $VALUE_OLD =~ $RE ]]; then
             VALUE=$VALUE_OLD
           elif [[ $VALUE_NEW =~ $RE ]]; then
@@ -262,12 +267,12 @@ function checkDID () {
           else
             continue
           fi
-#                VALUE=`echo \`$SMARTCTL -A -d auto $d | grep "^177\|^233" | tail --lines 1 | awk '{ print $4 }'\` + 0 | bc`  
+#                VALUE=`echo \`$SUDO $SMARTCTL -A -d auto $d | grep "^177\|^233" | tail --lines 1 | awk '{ print $4 }'\` + 0 | bc`  
         fi
       else
         RE='^[0-9]+$'
-        VALUE_OLD=$($SMARTCTL -A -d ${DRIVERS[$1]},$d ${BLOCKDEVICE[$1]} | grep "^177\|^233" | tail --lines 1 | awk '{ print $4 }')
-        VALUE_NEW=$($SMARTCTL -H -d ${DRIVERS[$1]},$d ${BLOCKDEVICE[$1]} | grep "^Percentage used endurance indicator" | tail --lines 1 | sed "s/%//g" |  awk '{ print $5 }')
+        VALUE_OLD=$($SUDO $SMARTCTL -A -d ${DRIVERS[$1]},$d ${BLOCKDEVICE[$1]} | grep "^177\|^233" | tail --lines 1 | awk '{ print $4 }')
+        VALUE_NEW=$($SUDO $SMARTCTL -H -d ${DRIVERS[$1]},$d ${BLOCKDEVICE[$1]} | grep "^Percentage used endurance indicator" | tail --lines 1 | sed "s/%//g" |  awk '{ print $5 }')
         if [[ $VALUE_OLD =~ $RE ]]; then
           VALUE=$VALUE_OLD
         else
